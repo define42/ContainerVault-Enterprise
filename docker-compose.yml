@@ -1,0 +1,23 @@
+version: "3.8"
+
+services:
+  registry:
+    image: registry:2
+    container_name: registry
+    restart: always
+    volumes:
+      - ./data:/var/lib/registry
+    environment:
+      REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY: /var/lib/registry
+      REGISTRY_HTTP_ADDR: :5000
+
+  proxy:
+    build: ./
+    container_name: registry-proxy
+    restart: always
+    ports:
+      - "443:8443"
+    depends_on:
+      - registry
+    environment:
+      REGISTRY_UPSTREAM: http://registry:5000
