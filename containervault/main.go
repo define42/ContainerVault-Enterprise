@@ -239,8 +239,6 @@ func ldapAuthenticate(username, password string) (*User, error) {
 		mail = username + domain
 	}
 
-	fmt.Println("my email", mail)
-
 	// Bind as the user using only the mail/UPN form.
 	bindIDs := []string{mail}
 
@@ -259,23 +257,8 @@ func ldapAuthenticate(username, password string) (*User, error) {
 	if bindErr != nil {
 		return nil, fmt.Errorf("ldap bind failed: %w", bindErr)
 	}
-	fmt.Println("Bind gik godt for ", mail)
-	/*
-			userDN := ""
-			if res, err := conn.WhoAmI(nil); err == nil {
-				if dn := extractDN(res.AuthzID); dn != "" {
-					userDN = dn
-				}
-			}
-			fmt.Println("aaaaaaaaaaaaaaawho am i:", userDN)
-
-		var entry *ldap.Entry
-		if userDN != "" {
-			entry, err = fetchEntry(conn, userDN, ldapCfg.GroupAttribute)
-		}*/
 
 	filter := fmt.Sprintf(ldapCfg.UserFilter, username)
-	fmt.Println("filter", filter)
 	searchReq := ldap.NewSearchRequest(
 		ldapCfg.BaseDN,
 		ldap.ScopeWholeSubtree,
@@ -287,58 +270,21 @@ func ldapAuthenticate(username, password string) (*User, error) {
 
 	sr, err := conn.Search(searchReq)
 	if err != nil {
-		fmt.Println("what", err)
 		return nil, fmt.Errorf("ldap search: %w", err)
 	}
 	if len(sr.Entries) == 0 {
 		return nil, fmt.Errorf("user %s not found", mail)
 	}
-	fmt.Println("############################", sr.Entries, len(sr.Entries))
-
-	for _, e := range sr.Entries {
-		fmt.Println("Entry DN:", e.DN)
-		fmt.Println(GetUserGroups(conn, e.DN, ldapCfg.BaseDN))
-		for _, attr := range e.Attributes {
-			fmt.Printf("  %s: %v\n", attr.Name, attr.Values)
-		}
-	}
 
 	entry := sr.Entries[0]
 
 	groups := entry.GetAttributeValues(ldapCfg.GroupAttribute)
-	fmt.Println("Groups for", username, ":", groups)
 	user := userFromGroups(username, groups, ldapCfg.GroupNamePrefix)
 	if user == nil {
 		return nil, fmt.Errorf("no authorized groups for %s", username)
 	}
 
 	return user, nil
-}
-
-func fetchEntry(conn *ldap.Conn, dn string, groupAttr string) (*ldap.Entry, error) {
-	req := ldap.NewSearchRequest(
-		dn,
-		ldap.ScopeBaseObject, ldap.NeverDerefAliases, 1, 0, false,
-		"(objectClass=*)",
-		[]string{"dn", groupAttr},
-		nil,
-	)
-	res, err := conn.Search(req)
-	if err != nil || len(res.Entries) == 0 {
-		return nil, err
-	}
-	return res.Entries[0], nil
-}
-
-func extractDN(authzID string) string {
-	authzID = strings.TrimSpace(authzID)
-	if strings.HasPrefix(strings.ToLower(authzID), "dn:") {
-		return strings.TrimSpace(authzID[3:])
-	}
-	if strings.Contains(authzID, "=") && strings.Contains(authzID, ",") {
-		return authzID
-	}
-	return ""
 }
 
 func dialLDAP(cfg LDAPConfig) (*ldap.Conn, error) {
@@ -362,17 +308,14 @@ func userFromGroups(username string, groups []string, prefix string) *User {
 
 	for _, g := range groups {
 		groupName := groupNameFromDN(g)
-		fmt.Println("groupName", groupName, prefix)
 		if prefix != "" && !strings.HasPrefix(groupName, prefix) {
 			continue
 		}
-		fmt.Println("A")
 
 		ns, pullOnly, deleteAllowed, ok := permissionsFromGroup(groupName)
 		if !ok {
 			continue
 		}
-		fmt.Println("B")
 
 		candidate := &User{
 			Name:          username,
@@ -384,7 +327,6 @@ func userFromGroups(username string, groups []string, prefix string) *User {
 		if selected == nil || morePermissive(candidate, selected) {
 			selected = candidate
 		}
-		fmt.Println("C")
 	}
 
 	return selected
