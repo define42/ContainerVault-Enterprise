@@ -58,7 +58,7 @@ func TestProxyPushPullViaDocker(t *testing.T) {
 	registryHost, stopRegistry := startRegistry(ctx, t, netName)
 	defer stopRegistry()
 
-	certDir := t.TempDir()
+	certDir := tempDirInRepo(t, "proxy-certs-")
 	proxyHost, stopProxy := startProxy(ctx, t, netName, certDir)
 	defer stopProxy()
 
@@ -68,7 +68,7 @@ func TestProxyPushPullViaDocker(t *testing.T) {
 	os.Setenv("LDAP_USER_DOMAIN", "@example.com")
 	ldapCfg = loadLDAPConfig()
 
-	dockerConfig := t.TempDir()
+	dockerConfig := tempDirInRepo(t, "docker-config-")
 	addDockerTrust(t, dockerConfig, proxyHost, filepath.Join(certDir, "registry.crt"))
 	writeDockerAuth(t, dockerConfig, proxyHost, "hackers", "dogood")
 
@@ -295,4 +295,20 @@ func pathRelative(t *testing.T, elems ...string) string {
 		t.Fatalf("abs path: %v", err)
 	}
 	return abs
+}
+
+func tempDirInRepo(t *testing.T, prefix string) string {
+	t.Helper()
+	base := pathRelative(t, "..", "tmp")
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		t.Fatalf("mk temp base: %v", err)
+	}
+	dir, err := os.MkdirTemp(base, prefix)
+	if err != nil {
+		t.Fatalf("mk temp dir: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = os.RemoveAll(dir)
+	})
+	return dir
 }
