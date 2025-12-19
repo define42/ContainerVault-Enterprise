@@ -50,3 +50,9 @@ type tagsResponse struct {
 	Name string   `json:"name"`
 	Tags []string `json:"tags"`
 }
+
+type tagInfo struct {
+	Tag            string `json:"tag"`
+	Digest         string `json:"digest"`
+	CompressedSize int64  `json:"compressed_size"`
+}

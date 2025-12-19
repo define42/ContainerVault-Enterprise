@@ -108,6 +108,12 @@ const dashboardHTML = `<!doctype html>
     .tag { padding:6px 10px; border-radius:999px; background:rgba(56,189,248,0.12); color:#bae6fd; font-size:12px; }
     .ref { color:#cbd5e1; font-size:13px; margin-top:10px; word-break:break-all; }
     .detail { min-height:220px; }
+    .taglist { display:grid; gap:10px; margin-top:12px; }
+    .tagrow { border:1px solid var(--line); border-radius:12px; padding:10px 12px; background:rgba(15,23,42,0.6); }
+    .tagrow-header { display:flex; align-items:center; justify-content:space-between; gap:12px; }
+    .tagname { font-weight:600; color:#e2e8f0; }
+    .tagstats { display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--muted); }
+    .stat { padding:4px 8px; border-radius:999px; background:rgba(148,163,184,0.12); }
     @media (max-width: 900px) { .layout { grid-template-columns: 1fr; } }
   </style>
 </head>
@@ -240,19 +246,67 @@ const dashboardHTML = `<!doctype html>
           return;
         }
         const base = window.location.host;
-        const tagHTML = (tags || []).map(function (tag) {
-          return '<span class="tag">' + escapeHTML(tag) + '</span>';
+        const rows = (tags || []).map(function (tag) {
+          return (
+            '<div class="tagrow" data-tag-row="' + escapeHTML(tag) + '">' +
+              '<div class="tagrow-header">' +
+                '<span class="tagname">' + escapeHTML(tag) + '</span>' +
+                '<span class="stat">loading...</span>' +
+              '</div>' +
+              '<div class="ref">' + escapeHTML(base + '/' + repo + ':' + tag) + '</div>' +
+            '</div>'
+          );
         }).join('');
-        const refs = (tags || []).map(function (tag) {
-          return base + '/' + repo + ':' + tag;
-        });
-        const refsHTML = refs.length
-          ? '<div class="ref">' + refs.map(escapeHTML).join('<br>') + '</div>'
-          : '<div class="ref">No tags available.</div>';
         detail.innerHTML =
           '<div><strong>' + escapeHTML(repo) + '</strong></div>' +
-          '<div class="tags">' + (tagHTML || '<span class="tag">no tags</span>') + '</div>' +
-          refsHTML;
+          '<div class="taglist">' + (rows || '<div class="mono">No tags available.</div>') + '</div>';
+        (tags || []).forEach(function (tag) {
+          loadTagInfo(repo, tag);
+        });
+      }
+
+      function formatBytes(value) {
+        if (value == null || value < 0) {
+          return 'unknown size';
+        }
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let size = value;
+        let unitIndex = 0;
+        while (size >= 1024 && unitIndex < units.length - 1) {
+          size /= 1024;
+          unitIndex += 1;
+        }
+        return size.toFixed(size >= 10 || unitIndex === 0 ? 0 : 1) + ' ' + units[unitIndex];
+      }
+
+      async function loadTagInfo(repo, tag) {
+        try {
+          const res = await fetch('/api/taginfo?repo=' + encodeURIComponent(repo) + '&tag=' + encodeURIComponent(tag));
+          const text = await res.text();
+          if (!res.ok) {
+            updateTagRow(tag, { digest: 'unavailable', compressed_size: -1 });
+            return;
+          }
+          const data = JSON.parse(text);
+          updateTagRow(tag, data);
+        } catch (err) {
+          updateTagRow(tag, { digest: 'unavailable', compressed_size: -1 });
+        }
+      }
+
+      function updateTagRow(tag, data) {
+        const row = detail.querySelector('[data-tag-row="' + CSS.escape(tag) + '"]');
+        if (!row) {
+          return;
+        }
+        const digest = data.digest ? data.digest : 'unknown digest';
+        const compressed = formatBytes(data.compressed_size);
+        row.querySelector('.tagrow-header').innerHTML =
+          '<span class="tagname">' + escapeHTML(tag) + '</span>' +
+          '<span class="tagstats">' +
+            '<span class="stat">compressed ' + escapeHTML(compressed) + '</span>' +
+            '<span class="stat mono">' + escapeHTML(digest) + '</span>' +
+          '</span>';
       }
 
       tree.addEventListener('click', function (event) {

@@ -224,3 +224,43 @@ func handleTags(w http.ResponseWriter, r *http.Request) {
 		"tags": tags,
 	})
 }
+
+func handleTagInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	sess, ok := getSession(r)
+	if !ok {
+		http.Error(w, "unauthorized", http.StatusUnauthorized)
+		return
+	}
+
+	repo := strings.TrimSpace(r.URL.Query().Get("repo"))
+	tag := strings.TrimSpace(r.URL.Query().Get("tag"))
+	if repo == "" || tag == "" {
+		http.Error(w, "missing repo or tag", http.StatusBadRequest)
+		return
+	}
+
+	parts := strings.SplitN(repo, "/", 2)
+	if len(parts) < 2 {
+		http.Error(w, "invalid repo", http.StatusBadRequest)
+		return
+	}
+	namespace := parts[0]
+	if !namespaceAllowed(sess.Namespaces, namespace) {
+		http.Error(w, "namespace not allowed", http.StatusForbidden)
+		return
+	}
+
+	info, err := fetchTagInfo(r.Context(), repo, tag)
+	if err != nil {
+		http.Error(w, "registry unavailable", http.StatusBadGateway)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	_ = json.NewEncoder(w).Encode(info)
+}

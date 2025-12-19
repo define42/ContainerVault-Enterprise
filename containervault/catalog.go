@@ -130,3 +130,136 @@ func fetchTags(ctx context.Context, repo string) ([]string, error) {
 	}
 	return tags.Tags, nil
 }
+
+func fetchTagInfo(ctx context.Context, repo, tag string) (tagInfo, error) {
+	client := &http.Client{Timeout: 10 * time.Second}
+	manifestURL := upstream.ResolveReference(&url.URL{Path: "/v2/" + repo + "/manifests/" + tag})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, manifestURL.String(), nil)
+	if err != nil {
+		return tagInfo{}, err
+	}
+	req.Header.Set("Accept", strings.Join([]string{
+		"application/vnd.docker.distribution.manifest.v2+json",
+		"application/vnd.docker.distribution.manifest.list.v2+json",
+		"application/vnd.oci.image.manifest.v1+json",
+		"application/vnd.oci.image.index.v1+json",
+	}, ", "))
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return tagInfo{}, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return tagInfo{}, fmt.Errorf("manifest status: %s", resp.Status)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return tagInfo{}, err
+	}
+
+	digest := resp.Header.Get("Docker-Content-Digest")
+	compressed, err := manifestCompressedSize(ctx, client, repo, body, resp.Header.Get("Content-Type"))
+	if err != nil {
+		return tagInfo{}, err
+	}
+
+	return tagInfo{
+		Tag:            tag,
+		Digest:         digest,
+		CompressedSize: compressed,
+	}, nil
+}
+
+type manifestSchema2 struct {
+	SchemaVersion int    `json:"schemaVersion"`
+	MediaType     string `json:"mediaType"`
+	Config        struct {
+		Size int64 `json:"size"`
+	} `json:"config"`
+	Layers []struct {
+		Size int64 `json:"size"`
+	} `json:"layers"`
+}
+
+type manifestList struct {
+	SchemaVersion int    `json:"schemaVersion"`
+	MediaType     string `json:"mediaType"`
+	Manifests     []struct {
+		Digest   string `json:"digest"`
+		Size     int64  `json:"size"`
+		Platform struct {
+			Architecture string `json:"architecture"`
+			OS           string `json:"os"`
+		} `json:"platform"`
+	} `json:"manifests"`
+}
+
+func manifestCompressedSize(ctx context.Context, client *http.Client, repo string, payload []byte, contentType string) (int64, error) {
+	if strings.Contains(contentType, "manifest.list") || strings.Contains(contentType, "image.index") {
+		var list manifestList
+		if err := json.Unmarshal(payload, &list); err != nil {
+			return 0, err
+		}
+		selected := ""
+		for _, manifest := range list.Manifests {
+			if manifest.Platform.OS == "linux" && manifest.Platform.Architecture == "amd64" {
+				selected = manifest.Digest
+				break
+			}
+		}
+		if selected == "" && len(list.Manifests) > 0 {
+			selected = list.Manifests[0].Digest
+		}
+		if selected == "" {
+			return 0, fmt.Errorf("manifest list empty")
+		}
+		return fetchManifestCompressedSizeByDigest(ctx, client, repo, selected)
+	}
+
+	var manifest manifestSchema2
+	if err := json.Unmarshal(payload, &manifest); err != nil {
+		return 0, err
+	}
+	var compressed int64
+	compressed += manifest.Config.Size
+	for _, layer := range manifest.Layers {
+		compressed += layer.Size
+	}
+	return compressed, nil
+}
+
+func fetchManifestCompressedSizeByDigest(ctx context.Context, client *http.Client, repo, digest string) (int64, error) {
+	manifestURL := upstream.ResolveReference(&url.URL{Path: "/v2/" + repo + "/manifests/" + digest})
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, manifestURL.String(), nil)
+	if err != nil {
+		return 0, err
+	}
+	req.Header.Set("Accept", strings.Join([]string{
+		"application/vnd.docker.distribution.manifest.v2+json",
+		"application/vnd.oci.image.manifest.v1+json",
+	}, ", "))
+	resp, err := client.Do(req)
+	if err != nil {
+		return 0, err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		return 0, fmt.Errorf("manifest status: %s", resp.Status)
+	}
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return 0, err
+	}
+	var manifest manifestSchema2
+	if err := json.Unmarshal(body, &manifest); err != nil {
+		return 0, err
+	}
+	var compressed int64
+	compressed += manifest.Config.Size
+	for _, layer := range manifest.Layers {
+		compressed += layer.Size
+	}
+	return compressed, nil
+}

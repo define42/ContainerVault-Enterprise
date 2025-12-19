@@ -55,6 +55,11 @@ func main() {
 			return
 		}
 
+		if r.URL.Path == "/api/taginfo" {
+			handleTagInfo(w, r)
+			return
+		}
+
 		user, ok := authenticate(w, r)
 		if !ok {
 			fmt.Println("not working with user", user)
