@@ -154,7 +154,9 @@ type State = {
           ? '<div class="branch">' + renderFolderNode(namespace, child) + "</div>"
           : "";
         return (
-          '<button class="node" data-type="folder" data-namespace="' +
+          '<button class="node" data-type="folder" data-depth="' +
+          escapeHTML(String(child.path.split("/").length)) +
+          '" data-namespace="' +
           escapeHTML(namespace) +
           '" data-folder-path="' +
           escapeHTML(child.path) +
@@ -179,7 +181,9 @@ type State = {
     return (
       '<button class="node' +
       (expanded ? " active" : "") +
-      '" data-type="repo" data-name="' +
+      '" data-type="repo" data-depth="' +
+      escapeHTML(String(repoLabel(namespace, repo).split("/").length)) +
+      '" data-name="' +
       escapeHTML(repo) +
       '">' +
       '<span class="caret">' +
