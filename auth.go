@@ -1,18 +1,13 @@
 package main
 
 import (
-	"fmt"
-	"log"
 	"net/http"
 	"strings"
 )
 
 func authenticate(w http.ResponseWriter, r *http.Request) (*User, bool) {
-	fmt.Println(r.Header)
 	username, password, ok := r.BasicAuth()
-	fmt.Println("sssssssssssssssss:", username)
 	if !ok || password == "" {
-		fmt.Println("write header WWW-Authenticate")
 		w.Header().Set("WWW-Authenticate", `Basic realm="Registry"`)
 		http.Error(w, "auth required", http.StatusUnauthorized)
 		return nil, false
@@ -20,7 +15,6 @@ func authenticate(w http.ResponseWriter, r *http.Request) (*User, bool) {
 
 	u, err := ldapAuthenticate(username, password)
 	if err != nil {
-		log.Printf("ldap auth failed for %s: %v", username, err)
 		http.Error(w, "invalid credentials", http.StatusUnauthorized)
 		return nil, false
 	}
