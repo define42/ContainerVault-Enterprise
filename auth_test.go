@@ -46,3 +46,20 @@ func TestAuthorizeDelete(t *testing.T) {
 		t.Fatalf("expected delete to be denied when not allowed")
 	}
 }
+
+func TestAuthorizeRejectsDotSegments(t *testing.T) {
+	user := &User{Namespace: "team1"}
+	req := httptest.NewRequest(http.MethodGet, "/v2/team1/../team2/repo", nil)
+	if authorize(user, req) {
+		t.Fatalf("expected dot-segment path to be denied")
+	}
+}
+
+func TestAuthorizeRejectsEncodedSlash(t *testing.T) {
+	user := &User{Namespace: "team1"}
+	req := httptest.NewRequest(http.MethodGet, "/v2/team1/repo/manifests/latest", nil)
+	req.URL.RawPath = "/v2/team1%2frepo/manifests/latest"
+	if authorize(user, req) {
+		t.Fatalf("expected encoded slash path to be denied")
+	}
+}

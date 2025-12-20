@@ -20,7 +20,13 @@ func main() {
 	proxy := &httputil.ReverseProxy{
 		Rewrite: func(pr *httputil.ProxyRequest) {
 			pr.SetURL(upstream)
-			pr.Out.Host = pr.In.Host
+			pr.Out.Header.Del("Forwarded")
+			pr.Out.Header.Del("X-Forwarded-For")
+			pr.Out.Header.Del("X-Forwarded-Host")
+			pr.Out.Header.Del("X-Forwarded-Proto")
+			pr.Out.Header.Del("Authorization")
+			pr.Out.Header.Del("Proxy-Authorization")
+			pr.Out.Host = upstream.Host
 			pr.SetXForwarded()
 		},
 	}

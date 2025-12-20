@@ -23,6 +23,10 @@ func authenticate(w http.ResponseWriter, r *http.Request) (*User, bool) {
 }
 
 func authorize(u *User, r *http.Request) bool {
+	if !isSafeRequestPath(r) {
+		return false
+	}
+
 	// Allow registry ping after authentication
 	if r.URL.Path == "/v2/" {
 		return true
@@ -48,5 +52,23 @@ func authorize(u *User, r *http.Request) bool {
 		return u.DeleteAllowed
 	}
 
+	return true
+}
+
+func isSafeRequestPath(r *http.Request) bool {
+	raw := r.URL.RawPath
+	if raw == "" {
+		raw = r.URL.EscapedPath()
+	}
+	rawLower := strings.ToLower(raw)
+	if strings.Contains(rawLower, "%2f") || strings.Contains(rawLower, "%5c") {
+		return false
+	}
+	parts := strings.Split(r.URL.Path, "/")
+	for _, part := range parts {
+		if part == "." || part == ".." {
+			return false
+		}
+	}
 	return true
 }
