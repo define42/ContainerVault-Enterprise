@@ -63,7 +63,7 @@ func TestCvRouterStaticSetsNoCache(t *testing.T) {
 		t.Fatalf("mkdir static dir: %v", err)
 	}
 	staticFile := filepath.Join(staticDir, "test.css")
-	if err := os.WriteFile(staticFile, []byte("body{}"), 0o644); err != nil {
+	if err := os.WriteFile(staticFile, []byte("body{}"), 0o600); err != nil {
 		t.Fatalf("write static file: %v", err)
 	}
 	t.Cleanup(func() {
