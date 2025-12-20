@@ -19,9 +19,9 @@ services:
     ports:
       - "389:389"
 
-  proxy:
+  containervault:
     build: ./
-    container_name: registry-proxy
+    container_name: containervault
     restart: always
     ports:
       - "443:8443"
