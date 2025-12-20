@@ -20,5 +20,19 @@ jobs:
       run: make all
     - name: Lint
       run: make lint
-    - name: Test
-      run: make test
+    - name: Run tests with coverage
+      run: |
+        go test ./... -coverprofile=coverage.out
+    - name: Show coverage in job summary
+      run: |
+        go tool cover -func=coverage.out | tee coverage.txt
+        echo "## Go Test Coverage" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        cat coverage.txt >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v4
+      with:
+        files: coverage.out
+        flags: unittests
+        fail_ci_if_error: true
