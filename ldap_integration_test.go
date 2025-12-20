@@ -59,6 +59,11 @@ func TestProxyPushPullViaDocker(t *testing.T) {
 	defer stopRegistry()
 
 	certDir := tempDirInRepo(t, "proxy-certs-")
+	certPath := filepath.Join(certDir, "registry.crt")
+	keyPath := filepath.Join(certDir, "registry.key")
+	if err := ensureTLSCert(certPath, keyPath); err != nil {
+		t.Fatalf("create certs: %v", err)
+	}
 	proxyHost, stopProxy := startProxy(ctx, t, netName, certDir)
 	defer stopProxy()
 
@@ -87,9 +92,9 @@ func TestProxyPushPullViaDocker(t *testing.T) {
 func startGlauth(ctx context.Context, t *testing.T, network string) (string, func()) {
 	t.Helper()
 
-	cfg := pathRelative(t,  "testldap", "default-config.cfg")
+	cfg := pathRelative(t, "testldap", "default-config.cfg")
 	cert := pathRelative(t, "testldap", "cert.pem")
-	key := pathRelative(t,  "testldap", "key.pem")
+	key := pathRelative(t, "testldap", "key.pem")
 
 	req := testcontainers.ContainerRequest{
 		Image:        "glauth/glauth:latest",
@@ -97,10 +102,10 @@ func startGlauth(ctx context.Context, t *testing.T, network string) (string, fun
 		Env: map[string]string{
 			"GLAUTH_CONFIG": "/app/config/config.cfg",
 		},
-		Mounts: []testcontainers.ContainerMount{
-			testcontainers.BindMount(cfg, "/app/config/config.cfg"),
-			testcontainers.BindMount(cert, "/app/config/cert.pem"),
-			testcontainers.BindMount(key, "/app/config/key.pem"),
+		Files: []testcontainers.ContainerFile{
+			{HostFilePath: cfg, ContainerFilePath: "/app/config/config.cfg", FileMode: 0o644},
+			{HostFilePath: cert, ContainerFilePath: "/app/config/cert.pem", FileMode: 0o644},
+			{HostFilePath: key, ContainerFilePath: "/app/config/key.pem", FileMode: 0o600},
 		},
 		Networks:       nil,
 		NetworkAliases: nil,
@@ -185,8 +190,8 @@ func startProxy(ctx context.Context, t *testing.T, network, certDir string) (str
 			Dockerfile: "Dockerfile",
 		},
 		ExposedPorts: []string{"8443/tcp"},
-		Mounts: []testcontainers.ContainerMount{
-			testcontainers.BindMount(certDir, "/certs"),
+		Files: []testcontainers.ContainerFile{
+			{HostFilePath: certDir, ContainerFilePath: "/certs", FileMode: 0o755},
 		},
 		WaitingFor: wait.ForLog("listening on :8443").
 			WithStartupTimeout(2 * time.Minute).
