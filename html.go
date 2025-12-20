@@ -20,12 +20,14 @@ const loginHTML = `<!doctype html>
     label { font-size:13px; color:var(--muted); letter-spacing:0.3px; text-transform:uppercase; }
     input { background:#0b1224; border:1px solid var(--line); color:#e2e8f0; border-radius:10px; padding:10px 12px; font-size:15px; }
     button { border:0; border-radius:10px; padding:12px 14px; font-weight:600; background:var(--accent); color:#062238; cursor:pointer; }
+    .error { margin-top:12px; padding:10px 12px; border-radius:10px; border:1px solid rgba(248,113,113,0.4); background:rgba(248,113,113,0.12); color:#fecaca; font-size:13px; }
   </style>
 </head>
 <body>
   <div class="card">
     <h1>ContainerVault Enterprise</h1>
     <p>Sign in to see your allowed namespaces and browse repository contents.</p>
+    {{ERROR}}
     <form method="post" action="/login">
       <div>
         <label for="username">Username</label>

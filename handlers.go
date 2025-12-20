@@ -28,25 +28,23 @@ func extractCredentials(r *http.Request) (string, string, bool, error) {
 func handleLogin(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		setNoCacheHeaders(w)
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, loginHTML)
+		serveLogin(w, "")
 		return
 	case http.MethodPost:
 		username, password, ok, err := extractCredentials(r)
 		if err != nil {
-			http.Error(w, "invalid form", http.StatusBadRequest)
+			serveLogin(w, "Invalid form submission.")
 			return
 		}
 		if !ok {
-			http.Error(w, "missing credentials", http.StatusBadRequest)
+			serveLogin(w, "Missing credentials.")
 			return
 		}
 
 		user, access, err := ldapAuthenticateAccess(username, password)
 		if err != nil {
 			log.Printf("ldap auth failed for %s: %v", username, err)
-			http.Error(w, "invalid credentials", http.StatusUnauthorized)
+			serveLogin(w, "Invalid credentials.")
 			return
 		}
 
@@ -64,6 +62,16 @@ func handleLogin(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
+}
+
+func serveLogin(w http.ResponseWriter, message string) {
+	setNoCacheHeaders(w)
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	errorHTML := ""
+	if message != "" {
+		errorHTML = `<div class="error">` + html.EscapeString(message) + `</div>`
+	}
+	fmt.Fprint(w, strings.Replace(loginHTML, "{{ERROR}}", errorHTML, 1))
 }
 
 func serveDashboard(w http.ResponseWriter, r *http.Request) {
