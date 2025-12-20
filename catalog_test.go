@@ -184,6 +184,178 @@ func TestFetchTagInfoManifestList(t *testing.T) {
 	}
 }
 
+func TestFetchManifestByDigest(t *testing.T) {
+	client := &http.Client{}
+	cleanup := withUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/team1/app/manifests/sha256:abc" {
+			http.NotFound(w, r)
+			return
+		}
+		if !strings.Contains(r.Header.Get("Accept"), "manifest.v2+json") {
+			http.Error(w, "missing accept header", http.StatusBadRequest)
+			return
+		}
+		w.Header().Set("Content-Type", "application/vnd.docker.distribution.manifest.v2+json")
+		_, _ = w.Write([]byte(`{"schemaVersion":2,"mediaType":"application/vnd.docker.distribution.manifest.v2+json"}`))
+	})
+	defer cleanup()
+
+	body, err := fetchManifestByDigest(context.Background(), client, "team1/app", "sha256:abc")
+	if err != nil {
+		t.Fatalf("fetchManifestByDigest: %v", err)
+	}
+	if !strings.Contains(string(body), `"schemaVersion":2`) {
+		t.Fatalf("unexpected manifest body: %s", string(body))
+	}
+}
+
+func TestFetchManifestByDigestStatusError(t *testing.T) {
+	client := &http.Client{}
+	cleanup := withUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		http.Error(w, "missing", http.StatusNotFound)
+	})
+	defer cleanup()
+
+	_, err := fetchManifestByDigest(context.Background(), client, "team1/app", "sha256:missing")
+	if err == nil || !strings.Contains(err.Error(), "manifest status") {
+		t.Fatalf("expected manifest status error, got %v", err)
+	}
+}
+
+func TestFetchConfigInfo(t *testing.T) {
+	client := &http.Client{}
+	cleanup := withUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/team1/app/blobs/sha256:cfg" {
+			http.NotFound(w, r)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+  "created": "2024-01-01T00:00:00Z",
+  "os": "linux",
+  "architecture": "amd64",
+  "config": {
+    "Entrypoint": ["/bin/sh"],
+    "Cmd": ["-c", "echo hello"],
+    "Env": ["A=1"],
+    "Labels": {"org.test":"value"}
+  },
+  "history": [
+    {"created_by": "/bin/sh -c echo hello", "empty_layer": false}
+  ]
+}`))
+	})
+	defer cleanup()
+
+	manifest := manifestSchema2{
+		SchemaVersion: 2,
+		MediaType:     "application/vnd.docker.distribution.manifest.v2+json",
+	}
+	manifest.Config.Digest = "sha256:cfg"
+	manifest.Config.Size = 42
+	manifest.Config.MediaType = "application/vnd.docker.container.image.v1+json"
+
+	info, err := fetchConfigInfo(context.Background(), client, "team1/app", manifest)
+	if err != nil {
+		t.Fatalf("fetchConfigInfo: %v", err)
+	}
+	if info.Digest != "sha256:cfg" || info.Size != 42 || info.OS != "linux" || info.Architecture != "amd64" {
+		t.Fatalf("unexpected config info: %#v", info)
+	}
+	if info.HistoryCount != 1 || len(info.History) != 1 {
+		t.Fatalf("unexpected history info: %#v", info.History)
+	}
+	if len(info.Entrypoint) != 1 || info.Entrypoint[0] != "/bin/sh" {
+		t.Fatalf("unexpected entrypoint: %#v", info.Entrypoint)
+	}
+}
+
+func TestFetchTagDetailsSchema2(t *testing.T) {
+	cleanup := withUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/team1/app/manifests/latest":
+			w.Header().Set("Content-Type", "application/vnd.docker.distribution.manifest.v2+json")
+			w.Header().Set("Docker-Content-Digest", "sha256:manifest")
+			_, _ = w.Write([]byte(`{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+  "config": { "size": 12, "digest": "sha256:cfg", "mediaType": "application/vnd.docker.container.image.v1+json" },
+  "layers": [
+    { "size": 5, "digest": "sha256:a", "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip" }
+  ]
+}`))
+		case "/v2/team1/app/blobs/sha256:cfg":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"created":"2024-01-01T00:00:00Z","os":"linux","architecture":"amd64","config":{"Entrypoint":[],"Cmd":[],"Env":[],"Labels":{}},"history":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+
+	details, err := fetchTagDetails(context.Background(), "team1/app", "latest")
+	if err != nil {
+		t.Fatalf("fetchTagDetails: %v", err)
+	}
+	if details.Digest != "sha256:manifest" || details.SchemaVersion != 2 || details.Tag != "latest" {
+		t.Fatalf("unexpected details: %#v", details)
+	}
+	if len(details.Layers) != 1 || details.Layers[0].Digest != "sha256:a" {
+		t.Fatalf("unexpected layers: %#v", details.Layers)
+	}
+	if details.Config.Digest != "sha256:cfg" || details.Config.OS != "linux" {
+		t.Fatalf("unexpected config: %#v", details.Config)
+	}
+}
+
+func TestFetchTagDetailsManifestList(t *testing.T) {
+	cleanup := withUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/team1/app/manifests/stable":
+			w.Header().Set("Content-Type", "application/vnd.docker.distribution.manifest.list.v2+json")
+			w.Header().Set("Docker-Content-Digest", "sha256:list")
+			_, _ = w.Write([]byte(`{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.docker.distribution.manifest.list.v2+json",
+  "manifests": [
+    { "digest": "sha256:linux", "size": 111, "platform": { "os": "linux", "architecture": "amd64" } },
+    { "digest": "sha256:arm", "size": 222, "platform": { "os": "linux", "architecture": "arm64" } }
+  ]
+}`))
+		case "/v2/team1/app/manifests/sha256:linux":
+			w.Header().Set("Content-Type", "application/vnd.docker.distribution.manifest.v2+json")
+			_, _ = w.Write([]byte(`{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+  "config": { "size": 2, "digest": "sha256:cfg", "mediaType": "application/vnd.docker.container.image.v1+json" },
+  "layers": [
+    { "size": 4, "digest": "sha256:a", "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip" }
+  ]
+}`))
+		case "/v2/team1/app/blobs/sha256:cfg":
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"created":"2024-01-02T00:00:00Z","os":"linux","architecture":"amd64","config":{"Entrypoint":[],"Cmd":[],"Env":[],"Labels":{}},"history":[]}`))
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+
+	details, err := fetchTagDetails(context.Background(), "team1/app", "stable")
+	if err != nil {
+		t.Fatalf("fetchTagDetails: %v", err)
+	}
+	if details.Digest != "sha256:list" || details.SchemaVersion != 2 {
+		t.Fatalf("unexpected details: %#v", details)
+	}
+	if len(details.Platforms) != 2 || details.Platforms[0].OS != "linux" {
+		t.Fatalf("unexpected platforms: %#v", details.Platforms)
+	}
+	if details.Config.Digest != "sha256:cfg" || len(details.Layers) != 1 {
+		t.Fatalf("unexpected config/layers: %#v %#v", details.Config, details.Layers)
+	}
+}
+
 func withUpstream(t *testing.T, handler http.HandlerFunc) func() {
 	t.Helper()
 	server := httptest.NewServer(handler)
