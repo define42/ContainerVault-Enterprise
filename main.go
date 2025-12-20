@@ -89,11 +89,12 @@ func main() {
 
 	log.Println("listening on :8443")
 	server := &http.Server{
-		Addr:         ":8443",
-		Handler:      router,
-		ReadTimeout:  15 * time.Second,
-		WriteTimeout: 30 * time.Second,
-		IdleTimeout:  60 * time.Second,
+		Addr:              ":8443",
+		Handler:           router,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      30 * time.Second,
+		IdleTimeout:       60 * time.Second,
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 	log.Fatal(server.ListenAndServeTLS(certPath, keyPath))
 }
