@@ -87,9 +87,9 @@ func TestProxyPushPullViaDocker(t *testing.T) {
 func startGlauth(ctx context.Context, t *testing.T, network string) (string, func()) {
 	t.Helper()
 
-	cfg := pathRelative(t, "..", "testldap", "default-config.cfg")
-	cert := pathRelative(t, "..", "testldap", "cert.pem")
-	key := pathRelative(t, "..", "testldap", "key.pem")
+	cfg := pathRelative(t,  "testldap", "default-config.cfg")
+	cert := pathRelative(t, "testldap", "cert.pem")
+	key := pathRelative(t,  "testldap", "key.pem")
 
 	req := testcontainers.ContainerRequest{
 		Image:        "glauth/glauth:latest",

@@ -16,10 +16,11 @@ const loginHTML = `<!doctype html>
     .card { background:linear-gradient(160deg, rgba(15,23,42,0.96), rgba(2,6,23,0.96)); border:1px solid var(--line); border-radius:18px; padding:36px 40px; max-width:520px; width:100%; box-shadow:0 24px 70px rgba(0,0,0,0.4); }
     h1 { margin:0 0 12px; font-size:30px; color:var(--accent); }
     p { margin:8px 0; line-height:1.5; color:var(--muted); }
-    form { display:grid; gap:14px; margin-top:18px; }
-    label { font-size:13px; color:var(--muted); letter-spacing:0.3px; text-transform:uppercase; }
-    input { background:#0b1224; border:1px solid var(--line); color:#e2e8f0; border-radius:10px; padding:10px 12px; font-size:15px; }
-    button { border:0; border-radius:10px; padding:12px 14px; font-weight:600; background:var(--accent); color:#062238; cursor:pointer; }
+    form { display:grid; gap:14px; margin-top:18px; width:100%; justify-items:stretch; }
+    .field { width:100%; }
+    label { display:block; margin-bottom:6px; font-size:13px; color:var(--muted); letter-spacing:0.3px; text-transform:uppercase; }
+    input { display:block; width:100%; box-sizing:border-box; background:#0b1224; border:1px solid var(--line); color:#e2e8f0; border-radius:10px; padding:10px 12px; font-size:15px; }
+    button { width:100%; box-sizing:border-box; border:0; border-radius:10px; padding:12px 14px; font-weight:600; background:var(--accent); color:#062238; cursor:pointer; }
     .error { margin-top:12px; padding:10px 12px; border-radius:10px; border:1px solid rgba(248,113,113,0.4); background:rgba(248,113,113,0.12); color:#fecaca; font-size:13px; }
   </style>
 </head>
@@ -29,11 +30,11 @@ const loginHTML = `<!doctype html>
     <p>Sign in to see your allowed namespaces and browse repository contents.</p>
     {{ERROR}}
     <form method="post" action="/login">
-      <div>
+      <div class="field">
         <label for="username">Username</label>
         <input id="username" name="username" autocomplete="username" required>
       </div>
-      <div>
+      <div class="field">
         <label for="password">Password</label>
         <input id="password" name="password" type="password" autocomplete="current-password" required>
       </div>
@@ -53,8 +54,8 @@ const dashboardHTML = `<!doctype html>
   <style>
     :root { --bg:#0b1224; --panel:#0f172a; --accent:#38bdf8; --muted:#94a3b8; --line:rgba(255,255,255,0.1); --tree:#0b1224; }
     body { margin:0; font-family: "Space Grotesk", "Segoe UI", sans-serif; background:
-      radial-gradient(circle at 10%% 20%%, rgba(56,189,248,0.16), transparent 40%%),
-      radial-gradient(circle at 90%% 0%%, rgba(14,165,233,0.12), transparent 35%%),
+      radial-gradient(circle at 10% 20%, rgba(56,189,248,0.16), transparent 40%),
+      radial-gradient(circle at 90% 0%, rgba(14,165,233,0.12), transparent 35%),
       var(--bg);
       color:#e2e8f0; min-height:100vh; padding:32px; }
     h1 { margin:0 0 6px; font-size:28px; color:var(--accent); }
@@ -66,7 +67,7 @@ const dashboardHTML = `<!doctype html>
     .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
     .logout { border:1px solid var(--line); background:#0b1224; color:#e2e8f0; padding:8px 12px; border-radius:10px; cursor:pointer; }
     .tree { display:flex; flex-direction:column; gap:6px; }
-    .node { width:100%%; text-align:left; border:1px solid var(--line); background:var(--tree); color:#e2e8f0; padding:8px 10px; border-radius:10px; display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px; }
+    .node { width:100%; text-align:left; border:1px solid var(--line); background:var(--tree); color:#e2e8f0; padding:8px 10px; border-radius:10px; display:flex; align-items:center; gap:8px; cursor:pointer; font-size:14px; }
     .node:hover { border-color:rgba(56,189,248,0.6); }
     .node.active { border-color:var(--accent); box-shadow:0 0 0 1px rgba(56,189,248,0.2) inset; }
     .node[data-type="namespace"] { background:rgba(56,189,248,0.14); color:#bae6fd; border-color:rgba(56,189,248,0.45); }
@@ -122,7 +123,7 @@ const dashboardHTML = `<!doctype html>
   <div class="topbar">
     <div>
       <h1>ContainerVault Enterprise</h1>
-      <p>Welcome, %s. Expand a namespace to browse repositories and tags.</p>
+      <p>Welcome, {{USERNAME}}. Expand a namespace to browse repositories and tags.</p>
     </div>
     <form method="post" action="/logout">
       <button class="logout" type="submit">Logout</button>
@@ -138,7 +139,7 @@ const dashboardHTML = `<!doctype html>
       <div id="detailPanel" class="detail mono">Select a repository to view tags.</div>
     </div>
   </div>
-  <script id="cv-bootstrap" type="application/json">%s</script>
+  <script id="cv-bootstrap" type="application/json">{{BOOTSTRAP}}</script>
   <script type="module" src="/static/ui.js"></script>
 </body>
 </html>

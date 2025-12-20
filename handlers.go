@@ -90,8 +90,11 @@ func serveDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 
 	setNoCacheHeaders(w)
+	setNoCacheHeaders(w)
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	fmt.Fprintf(w, dashboardHTML, html.EscapeString(sess.User.Name), string(bootstrapJSON))
+	page := strings.Replace(dashboardHTML, "{{USERNAME}}", html.EscapeString(sess.User.Name), 1)
+	page = strings.Replace(page, "{{BOOTSTRAP}}", string(bootstrapJSON), 1)
+	fmt.Fprint(w, page)
 }
 
 func setNoCacheHeaders(w http.ResponseWriter) {
