@@ -20,7 +20,7 @@ services:
       - "389:389"
 
   proxy:
-    build: ./containervault/
+    build: ./
     container_name: registry-proxy
     restart: always
     ports:
