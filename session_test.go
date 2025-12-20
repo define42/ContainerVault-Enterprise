@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"testing"
 	"time"
 )
@@ -16,6 +17,41 @@ func TestNamespacesFromAccess(t *testing.T) {
 	got := namespacesFromAccess(access)
 	if len(got) != 2 || got[0] != "team1" || got[1] != "team2" {
 		t.Fatalf("unexpected namespaces: %#v", got)
+	}
+}
+
+func TestCreateSessionStoresData(t *testing.T) {
+	resetSessions(t)
+	user := &User{Name: "alice"}
+	access := []Access{
+		{Namespace: "team1"},
+		{Namespace: "team2"},
+		{Namespace: "team1"},
+	}
+
+	start := time.Now()
+	token := createSession(user, access)
+	end := time.Now()
+
+	if token == "" {
+		t.Fatalf("expected token to be set")
+	}
+
+	sessionMu.Lock()
+	sess, ok := sessions[token]
+	sessionMu.Unlock()
+	if !ok {
+		t.Fatalf("expected session to be stored")
+	}
+	if sess.User == nil || sess.User.Name != "alice" {
+		t.Fatalf("unexpected user: %#v", sess.User)
+	}
+	expectedNamespaces := []string{"team1", "team2"}
+	if !reflect.DeepEqual(sess.Namespaces, expectedNamespaces) {
+		t.Fatalf("unexpected namespaces: %#v", sess.Namespaces)
+	}
+	if sess.CreatedAt.Before(start) || sess.CreatedAt.After(end) {
+		t.Fatalf("unexpected CreatedAt: %v", sess.CreatedAt)
 	}
 }
 
