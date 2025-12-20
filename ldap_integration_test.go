@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/testcontainers/testcontainers-go"
+	tcnetwork "github.com/testcontainers/testcontainers-go/network"
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
@@ -43,14 +44,12 @@ func TestProxyPushPullViaDocker(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 	defer cancel()
 
-	netName := fmt.Sprintf("cvnet-%d", time.Now().UnixNano())
-	network, err := testcontainers.GenericNetwork(ctx, testcontainers.GenericNetworkRequest{
-		NetworkRequest: testcontainers.NetworkRequest{Name: netName},
-	})
+	network, err := tcnetwork.New(ctx)
 	if err != nil {
 		t.Fatalf("create network: %v", err)
 	}
 	defer network.Remove(ctx) //nolint:errcheck
+	netName := network.Name
 
 	ldapURL, stopLDAP := startGlauth(ctx, t, netName)
 	defer stopLDAP()
@@ -258,7 +257,9 @@ func writeDockerAuth(t *testing.T, configDir, registry, user, pass string) {
 func ensureBaseImage(t *testing.T, configDir, image string) string {
 	t.Helper()
 	cmd := exec.Command("docker", "--config", configDir, "pull", image)
-	_ = cmd.Run() // ignore error if already present
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("docker pull %s: %v", image, err)
+	}
 	return image
 }
 
@@ -281,7 +282,9 @@ func dockerPush(t *testing.T, configDir, target string) {
 func dockerRmi(t *testing.T, configDir, target string) {
 	t.Helper()
 	cmd := exec.Command("docker", "--config", configDir, "rmi", "-f", target)
-	cmd.Run() // ignore errors if missing
+	if err := cmd.Run(); err != nil {
+		t.Fatalf("docker rmi %s: %v", target, err)
+	}
 }
 
 func dockerPull(t *testing.T, configDir, target string) {
