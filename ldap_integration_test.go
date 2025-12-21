@@ -249,6 +249,43 @@ func TestCvRouterProxyWithLDAP(t *testing.T) {
 	if !strings.Contains(string(body), "Invalid credentials.") {
 		t.Fatalf("expected invalid credentials message on login failure")
 	}
+
+	emptyForm := url.Values{}
+	emptyForm.Set("username", "hackers")
+	emptyForm.Set("password", "")
+	emptyReq, err := http.NewRequestWithContext(ctx, http.MethodPost, server.URL+"/login", strings.NewReader(emptyForm.Encode()))
+	if err != nil {
+		t.Fatalf("new empty login request: %v", err)
+	}
+	emptyReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	emptyResp, err := loginClient.Do(emptyReq)
+	if err != nil {
+		t.Fatalf("do empty login request: %v", err)
+	}
+	defer emptyResp.Body.Close()
+	if emptyResp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(emptyResp.Body)
+		t.Fatalf("expected 200 for empty login page, got %d: %s", emptyResp.StatusCode, string(body))
+	}
+	body, _ = io.ReadAll(emptyResp.Body)
+	if !strings.Contains(string(body), "Missing credentials.") {
+		t.Fatalf("expected missing credentials message on empty login")
+	}
+
+	emptyBasicReq, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/v2/", nil)
+	if err != nil {
+		t.Fatalf("new empty basic auth request: %v", err)
+	}
+	emptyBasicReq.SetBasicAuth("hackers", "")
+	emptyBasicResp, err := client.Do(emptyBasicReq)
+	if err != nil {
+		t.Fatalf("do empty basic auth request: %v", err)
+	}
+	defer emptyBasicResp.Body.Close()
+	if emptyBasicResp.StatusCode != http.StatusUnauthorized {
+		body, _ := io.ReadAll(emptyBasicResp.Body)
+		t.Fatalf("expected 401 for empty basic auth password, got %d: %s", emptyBasicResp.StatusCode, string(body))
+	}
 }
 
 func startGlauth(ctx context.Context, t *testing.T, network string) (string, func()) {
