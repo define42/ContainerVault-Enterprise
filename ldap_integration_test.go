@@ -139,6 +139,35 @@ func TestCvRouterProxyWithLDAP(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", resp.StatusCode, string(body))
 	}
 
+	forbiddenReq, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/v2/something", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	forbiddenReq.SetBasicAuth("hackers", "dogood")
+	forbiddenResp, err := client.Do(forbiddenReq)
+	if err != nil {
+		t.Fatalf("do forbidden request: %v", err)
+	}
+	defer forbiddenResp.Body.Close()
+	if forbiddenResp.StatusCode != http.StatusForbidden {
+		body, _ := io.ReadAll(forbiddenResp.Body)
+		t.Fatalf("expected 403 for wrong namespace, got %d: %s", forbiddenResp.StatusCode, string(body))
+	}
+
+	noAuthReq, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/dashboard", nil)
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	noAuthResp, err := client.Do(noAuthReq)
+	if err != nil {
+		t.Fatalf("do no-auth request: %v", err)
+	}
+	defer noAuthResp.Body.Close()
+	if noAuthResp.StatusCode != http.StatusUnauthorized {
+		body, _ := io.ReadAll(noAuthResp.Body)
+		t.Fatalf("expected 401 for /dashboard without auth, got %d: %s", noAuthResp.StatusCode, string(body))
+	}
+
 	badReq, err := http.NewRequestWithContext(ctx, http.MethodGet, server.URL+"/v2/", nil)
 	if err != nil {
 		t.Fatalf("new request: %v", err)
