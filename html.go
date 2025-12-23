@@ -72,6 +72,11 @@ const dashboardHTML = `<!doctype html>
     .node.active { border-color:var(--accent); box-shadow:0 0 0 1px rgba(56,189,248,0.2) inset; }
     .node[data-type="namespace"] { background:rgba(56,189,248,0.14); color:#bae6fd; border-color:rgba(56,189,248,0.45); }
     .node[data-type="namespace"].active { border-color:var(--accent); }
+    .perm { display:inline-flex; align-items:center; justify-content:center; min-width:30px; height:18px; padding:0 6px; border-radius:999px; font-size:10px; font-weight:700; letter-spacing:0.08em; text-transform:uppercase; border:1px solid rgba(148,163,184,0.4); color:#e2e8f0; }
+    .perm-r { background:rgba(148,163,184,0.2); color:#e2e8f0; }
+    .perm-rw { background:rgba(56,189,248,0.18); color:#7dd3fc; border-color:rgba(56,189,248,0.45); }
+    .perm-rd { background:rgba(248,113,113,0.18); color:#fca5a5; border-color:rgba(248,113,113,0.45); }
+    .perm-rwd { background:rgba(74,222,128,0.18); color:#86efac; border-color:rgba(74,222,128,0.45); }
     .node[data-type="folder"] { background:rgba(20,30,60,0.8); color:#e2e8f0; border-color:rgba(148,163,184,0.35); }
     .node[data-type="repo"] { background:rgba(15,23,42,0.8); color:#e2e8f0; }
     .node::before { content: ""; width:14px; height:14px; display:inline-flex; align-items:center; justify-content:center; font-size:12px; }

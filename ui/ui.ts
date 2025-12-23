@@ -1,6 +1,15 @@
 type BootstrapData = {
   namespaces: string[];
+  permissions?: NamespacePermission[];
 };
+
+type NamespacePermission = {
+  namespace: string;
+  pull_only: boolean;
+  delete_allowed: boolean;
+};
+
+type PermissionKind = "r" | "rw" | "rd" | "rwd";
 
 type TagInfo = {
   tag: string;
@@ -69,6 +78,14 @@ type HistoryEntry = {
     ? JSON.parse(bootstrapEl.textContent)
     : { namespaces: [] };
   const namespaces = Array.isArray(bootstrap.namespaces) ? bootstrap.namespaces : [];
+  const permissions = Array.isArray(bootstrap.permissions) ? bootstrap.permissions : [];
+  const permissionByNamespace = new Map<string, PermissionKind>();
+  permissions.forEach((perm) => {
+    if (!perm || typeof perm.namespace !== "string") {
+      return;
+    }
+    permissionByNamespace.set(perm.namespace, permissionKindFromFlags(perm));
+  });
 
   const state: State = {
     expandedNamespace: null,
@@ -95,6 +112,44 @@ type HistoryEntry = {
     });
   }
 
+  const permissionLabels: Record<PermissionKind, string> = {
+    r: "Read only",
+    rw: "Read/write",
+    rd: "Read/delete",
+    rwd: "Read/write/delete",
+  };
+
+  function permissionKindFromFlags(perm: NamespacePermission): PermissionKind {
+    const canWrite = !perm.pull_only;
+    const canDelete = perm.delete_allowed;
+    if (canWrite && canDelete) {
+      return "rwd";
+    }
+    if (canWrite) {
+      return "rw";
+    }
+    if (canDelete) {
+      return "rd";
+    }
+    return "r";
+  }
+
+  function permissionBadge(namespace: string): string {
+    const kind = permissionByNamespace.get(namespace) || "rw";
+    const label = permissionLabels[kind];
+    return (
+      '<span class="perm perm-' +
+      escapeHTML(kind) +
+      '" title="' +
+      escapeHTML(label) +
+      '" aria-label="' +
+      escapeHTML(label) +
+      '">' +
+      escapeHTML(kind.toUpperCase()) +
+      "</span>"
+    );
+  }
+
   function renderTree(): void {
     if (!namespaces || namespaces.length === 0) {
       treeEl.innerHTML = '<div class="mono">No namespaces assigned.</div>';
@@ -118,6 +173,7 @@ type HistoryEntry = {
           '<span class="caret">' +
           caret +
           "</span>" +
+          permissionBadge(ns) +
           "<span>" +
           escapeHTML(ns) +
           "</span>" +

@@ -70,8 +70,10 @@ func serveLogin(w http.ResponseWriter, message string) {
 }
 
 func renderDashboardHTML(sess sessionData) ([]byte, error) {
+	permissions := buildNamespacePermissions(sess.Namespaces, sess.Access)
 	bootstrapJSON, err := json.Marshal(map[string]any{
-		"namespaces": sess.Namespaces,
+		"namespaces":  sess.Namespaces,
+		"permissions": permissions,
 	})
 	if err != nil {
 		return nil, err
@@ -80,6 +82,59 @@ func renderDashboardHTML(sess sessionData) ([]byte, error) {
 	page := strings.Replace(dashboardHTML, "{{USERNAME}}", html.EscapeString(sess.User.Name), 1)
 	page = strings.Replace(page, "{{BOOTSTRAP}}", string(bootstrapJSON), 1)
 	return []byte(page), nil
+}
+
+type namespacePermission struct {
+	Namespace     string `json:"namespace"`
+	PullOnly      bool   `json:"pull_only"`
+	DeleteAllowed bool   `json:"delete_allowed"`
+}
+
+func buildNamespacePermissions(namespaces []string, access []Access) []namespacePermission {
+	perms := make(map[string]*namespacePermission, len(namespaces))
+	seen := make(map[string]bool, len(namespaces))
+
+	for _, entry := range access {
+		if entry.Namespace == "" {
+			continue
+		}
+		seen[entry.Namespace] = true
+		perm := perms[entry.Namespace]
+		if perm == nil {
+			perm = &namespacePermission{
+				Namespace: entry.Namespace,
+				PullOnly:  true,
+			}
+			perms[entry.Namespace] = perm
+		}
+		if !entry.PullOnly {
+			perm.PullOnly = false
+		}
+		if entry.DeleteAllowed {
+			perm.DeleteAllowed = true
+		}
+	}
+
+	result := make([]namespacePermission, 0, len(namespaces))
+	for _, ns := range namespaces {
+		if ns == "" {
+			continue
+		}
+		if perm, ok := perms[ns]; ok {
+			result = append(result, *perm)
+			continue
+		}
+		if seen[ns] {
+			continue
+		}
+		result = append(result, namespacePermission{
+			Namespace:     ns,
+			PullOnly:      false,
+			DeleteAllowed: false,
+		})
+	}
+
+	return result
 }
 
 const (
