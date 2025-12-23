@@ -64,6 +64,19 @@ func TestHandleLoginMissingCredentials(t *testing.T) {
 	}
 }
 
+func TestHandleLoginInvalidForm(t *testing.T) {
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader("%%%"))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	handleLogin(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	if !strings.Contains(rec.Body.String(), "Invalid form submission.") {
+		t.Fatalf("expected invalid form submission error")
+	}
+}
+
 func TestHandleLogoutClearsSession(t *testing.T) {
 	token := seedSession(t, "alice", []string{"team1"})
 	rec := httptest.NewRecorder()
@@ -167,8 +180,7 @@ func TestHandleCatalogNamespaceNotAllowed(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/catalog?namespace=team2", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
-	sess := sessionFromRequest(t, req)
-	handleCatalog(rec, req, sess)
+	Session(handleCatalog).ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", rec.Code)
 	}
