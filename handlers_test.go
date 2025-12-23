@@ -109,21 +109,23 @@ func TestHandleLogoutMethodNotAllowed(t *testing.T) {
 }
 
 func TestServeDashboardUnauthorized(t *testing.T) {
+	router := cvRouter()
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
-	Session(serveDashboard).ServeHTTP(rec, req)
+	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("expected 401, got %d", rec.Code)
 	}
 }
 
 func TestServeDashboardOK(t *testing.T) {
+	router := cvRouter()
 	token := seedSession(t, "alice", []string{"team1", "team2"})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
 
-	Session(serveDashboard).ServeHTTP(rec, req)
+	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -154,11 +156,12 @@ func TestHandleCatalogSuccess(t *testing.T) {
 	})
 	defer cleanup()
 
+	router := cvRouter()
 	token := seedSession(t, "alice", []string{"team1"})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/catalog?namespace=team1", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
-	Session(handleCatalog).ServeHTTP(rec, req)
+	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -176,11 +179,12 @@ func TestHandleCatalogSuccess(t *testing.T) {
 }
 
 func TestHandleCatalogNamespaceNotAllowed(t *testing.T) {
+	router := cvRouter()
 	token := seedSession(t, "alice", []string{"team1"})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/catalog?namespace=team2", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
-	Session(handleCatalog).ServeHTTP(rec, req)
+	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("expected 403, got %d", rec.Code)
 	}
@@ -197,11 +201,12 @@ func TestHandleReposSuccess(t *testing.T) {
 	})
 	defer cleanup()
 
+	router := cvRouter()
 	token := seedSession(t, "alice", []string{"team1"})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/repos?namespace=team1", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
-	Session(handleRepos).ServeHTTP(rec, req)
+	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -228,11 +233,12 @@ func TestHandleTagsSuccess(t *testing.T) {
 	})
 	defer cleanup()
 
+	router := cvRouter()
 	token := seedSession(t, "alice", []string{"team1"})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/tags?repo=team1/app", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
-	Session(handleTags).ServeHTTP(rec, req)
+	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -267,11 +273,12 @@ func TestHandleTagInfoSuccess(t *testing.T) {
 	})
 	defer cleanup()
 
+	router := cvRouter()
 	token := seedSession(t, "alice", []string{"team1"})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/taginfo?repo=team1/app&tag=latest", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
-	Session(handleTagInfo).ServeHTTP(rec, req)
+	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -307,11 +314,12 @@ func TestHandleTagLayersSuccess(t *testing.T) {
 	})
 	defer cleanup()
 
+	router := cvRouter()
 	token := seedSession(t, "alice", []string{"team1"})
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/taglayers?repo=team1/app&tag=latest", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
-	Session(handleTagLayers).ServeHTTP(rec, req)
+	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}

@@ -69,26 +69,29 @@ func serveLogin(w http.ResponseWriter, message string) {
 	fmt.Fprint(w, strings.Replace(loginHTML, "{{ERROR}}", errorHTML, 1))
 }
 
-func serveDashboard(w http.ResponseWriter, r *http.Request, sess sessionData) {
+func renderDashboardHTML(sess sessionData) ([]byte, error) {
 	bootstrapJSON, err := json.Marshal(map[string]any{
 		"namespaces": sess.Namespaces,
 	})
 	if err != nil {
-		http.Error(w, "unable to render dashboard", http.StatusInternalServerError)
-		return
+		return nil, err
 	}
 
-	setNoCacheHeaders(w)
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	page := strings.Replace(dashboardHTML, "{{USERNAME}}", html.EscapeString(sess.User.Name), 1)
 	page = strings.Replace(page, "{{BOOTSTRAP}}", string(bootstrapJSON), 1)
-	fmt.Fprint(w, page)
+	return []byte(page), nil
 }
 
+const (
+	cacheControlValue = "no-store, no-cache, must-revalidate, max-age=0"
+	pragmaValue       = "no-cache"
+	expiresValue      = "0"
+)
+
 func setNoCacheHeaders(w http.ResponseWriter) {
-	w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
-	w.Header().Set("Pragma", "no-cache")
-	w.Header().Set("Expires", "0")
+	w.Header().Set("Cache-Control", cacheControlValue)
+	w.Header().Set("Pragma", pragmaValue)
+	w.Header().Set("Expires", expiresValue)
 }
 
 func handleLogout(w http.ResponseWriter, r *http.Request) {
@@ -111,28 +114,6 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
-func handleCatalog(w http.ResponseWriter, r *http.Request, sess sessionData) {
-
-	namespace := strings.TrimSpace(r.URL.Query().Get("namespace"))
-	if namespace == "" || !namespaceAllowed(sess.Namespaces, namespace) {
-		http.Error(w, "namespace not allowed", http.StatusForbidden)
-		return
-	}
-
-	repos, err := fetchCatalog(r.Context(), namespace)
-	if err != nil {
-		http.Error(w, "registry unavailable", http.StatusBadGateway)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"username":     sess.User.Name,
-		"namespace":    namespace,
-		"repositories": repos,
-	})
-}
-
 func namespaceAllowed(allowed []string, namespace string) bool {
 	for _, ns := range allowed {
 		if ns == namespace {
@@ -140,116 +121,4 @@ func namespaceAllowed(allowed []string, namespace string) bool {
 		}
 	}
 	return false
-}
-
-func handleRepos(w http.ResponseWriter, r *http.Request, sess sessionData) {
-
-	namespace := strings.TrimSpace(r.URL.Query().Get("namespace"))
-	if namespace == "" || !namespaceAllowed(sess.Namespaces, namespace) {
-		http.Error(w, "namespace not allowed", http.StatusForbidden)
-		return
-	}
-
-	repos, err := fetchRepos(r.Context(), namespace)
-	if err != nil {
-		http.Error(w, "registry unavailable", http.StatusBadGateway)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"namespace":    namespace,
-		"repositories": repos,
-	})
-}
-
-func handleTags(w http.ResponseWriter, r *http.Request, sess sessionData) {
-
-	repo := strings.TrimSpace(r.URL.Query().Get("repo"))
-	if repo == "" {
-		http.Error(w, "missing repo", http.StatusBadRequest)
-		return
-	}
-
-	parts := strings.SplitN(repo, "/", 2)
-	if len(parts) < 2 {
-		http.Error(w, "invalid repo", http.StatusBadRequest)
-		return
-	}
-	namespace := parts[0]
-	if !namespaceAllowed(sess.Namespaces, namespace) {
-		http.Error(w, "namespace not allowed", http.StatusForbidden)
-		return
-	}
-
-	tags, err := fetchTags(r.Context(), repo)
-	if err != nil {
-		http.Error(w, "registry unavailable", http.StatusBadGateway)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(map[string]any{
-		"repo": repo,
-		"tags": tags,
-	})
-}
-
-func handleTagInfo(w http.ResponseWriter, r *http.Request, sess sessionData) {
-
-	repo := strings.TrimSpace(r.URL.Query().Get("repo"))
-	tag := strings.TrimSpace(r.URL.Query().Get("tag"))
-	if repo == "" || tag == "" {
-		http.Error(w, "missing repo or tag", http.StatusBadRequest)
-		return
-	}
-
-	parts := strings.SplitN(repo, "/", 2)
-	if len(parts) < 2 {
-		http.Error(w, "invalid repo", http.StatusBadRequest)
-		return
-	}
-	namespace := parts[0]
-	if !namespaceAllowed(sess.Namespaces, namespace) {
-		http.Error(w, "namespace not allowed", http.StatusForbidden)
-		return
-	}
-
-	info, err := fetchTagInfo(r.Context(), repo, tag)
-	if err != nil {
-		http.Error(w, "registry unavailable", http.StatusBadGateway)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(info)
-}
-
-func handleTagLayers(w http.ResponseWriter, r *http.Request, sess sessionData) {
-	repo := strings.TrimSpace(r.URL.Query().Get("repo"))
-	tag := strings.TrimSpace(r.URL.Query().Get("tag"))
-	if repo == "" || tag == "" {
-		http.Error(w, "missing repo or tag", http.StatusBadRequest)
-		return
-	}
-
-	parts := strings.SplitN(repo, "/", 2)
-	if len(parts) < 2 {
-		http.Error(w, "invalid repo", http.StatusBadRequest)
-		return
-	}
-	namespace := parts[0]
-	if !namespaceAllowed(sess.Namespaces, namespace) {
-		http.Error(w, "namespace not allowed", http.StatusForbidden)
-		return
-	}
-
-	details, err := fetchTagDetails(r.Context(), repo, tag)
-	if err != nil {
-		http.Error(w, "registry unavailable", http.StatusBadGateway)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	_ = json.NewEncoder(w).Encode(details)
 }

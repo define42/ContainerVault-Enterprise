@@ -11,27 +11,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/danielgtaylor/huma/v2"
+	"github.com/danielgtaylor/huma/v2/adapters/humachi"
+	"github.com/go-chi/chi/v5"
 )
 
 var proxyTransport http.RoundTripper = http.DefaultTransport
 
-type SessionHandler func(w http.ResponseWriter, r *http.Request, sess sessionData)
-
-func Session(next SessionHandler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-
-		sess, ok := getSession(r)
-		if !ok {
-			http.Error(w, "unauthorized", http.StatusUnauthorized)
-			return
-		}
-
-		next(w, r, sess)
-	})
-}
-
-func cvRouter() *mux.Router {
+func cvRouter() http.Handler {
 	_ = mime.AddExtensionType(".js", "application/javascript")
 	staticDir := resolveStaticDir()
 
@@ -53,13 +40,9 @@ func cvRouter() *mux.Router {
 
 	proxy.FlushInterval = -1 // important for streaming blobs
 
-	apiUnauthorized := func(w http.ResponseWriter, r *http.Request) {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-	}
-
-	router := mux.NewRouter()
+	router := chi.NewRouter()
 	staticHandler := http.StripPrefix("/static/", http.FileServer(http.Dir(staticDir)))
-	router.PathPrefix("/static/").Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	router.Handle("/static/*", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		path := strings.TrimPrefix(r.URL.Path, "/static/")
 		if strings.HasSuffix(path, ".js") {
 			w.Header().Set("Content-Type", "application/javascript")
@@ -68,22 +51,21 @@ func cvRouter() *mux.Router {
 		staticHandler.ServeHTTP(w, r)
 	}))
 
-	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	router.Get("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
-	}).Methods(http.MethodGet)
-	router.HandleFunc("/login", handleLoginPost).Methods(http.MethodPost)
-	router.HandleFunc("/login", handleLoginGet).Methods(http.MethodGet)
+	})
+	router.Post("/login", handleLoginPost)
+	router.Get("/login", handleLoginGet)
 	router.HandleFunc("/logout", handleLogout)
-	api := router.PathPrefix("/api/").Subrouter()
-	api.Use(requireSessionMiddleware(apiUnauthorized))
-	api.Handle("/dashboard", Session(serveDashboard)).Methods(http.MethodGet)
-	api.Handle("/catalog", Session(handleCatalog)).Methods(http.MethodGet)
-	api.Handle("/repos", Session(handleRepos)).Methods(http.MethodGet)
-	api.Handle("/tags", Session(handleTags)).Methods(http.MethodGet)
-	api.Handle("/taginfo", Session(handleTagInfo)).Methods(http.MethodGet)
-	api.Handle("/taglayers", Session(handleTagLayers)).Methods(http.MethodGet)
 
-	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	apiCfg := huma.DefaultConfig("ContainerVault", "1.0.0")
+	apiCfg.OpenAPIPath = ""
+	apiCfg.DocsPath = ""
+	apiCfg.SchemasPath = ""
+	api := humachi.New(router, apiCfg)
+	registerAPI(api)
+
+	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
 		user, ok := authenticate(w, r)
 		if !ok {
 			// http.Error already sent
@@ -122,22 +104,6 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 	log.Fatal(server.ListenAndServeTLS(certPath, keyPath))
-}
-
-func requireSessionMiddleware(onFail http.HandlerFunc) mux.MiddlewareFunc {
-	return func(next http.Handler) http.Handler {
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if _, ok := getSession(r); !ok {
-				if onFail != nil {
-					onFail(w, r)
-					return
-				}
-				http.Error(w, "unauthorized", http.StatusUnauthorized)
-				return
-			}
-			next.ServeHTTP(w, r)
-		})
-	}
 }
 
 func resolveStaticDir() string {
