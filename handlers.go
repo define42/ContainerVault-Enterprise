@@ -25,44 +25,38 @@ func extractCredentials(r *http.Request) (string, string, bool, error) {
 	return username, password, true, nil
 }
 
-func handleLogin(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodGet:
-		serveLogin(w, "")
-		return
-	case http.MethodPost:
-		username, password, ok, err := extractCredentials(r)
-		if err != nil {
-			serveLogin(w, "Invalid form submission.")
-			return
-		}
-		if !ok {
-			serveLogin(w, "Missing credentials.")
-			return
-		}
-
-		user, access, err := ldapAuthenticateAccess(username, password)
-		if err != nil {
-			log.Printf("ldap auth failed for %s: %v", username, err)
-			serveLogin(w, "Invalid credentials.")
-			return
-		}
-
-		token := createSession(user, access)
-		http.SetCookie(w, &http.Cookie{
-			Name:     "cv_session",
-			Value:    token,
-			Path:     "/",
-			HttpOnly: true,
-			Secure:   true,
-			SameSite: http.SameSiteLaxMode,
-		})
-		http.Redirect(w, r, "/api/dashboard", http.StatusSeeOther)
-		return
-	default:
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+func handleLoginPost(w http.ResponseWriter, r *http.Request) {
+	username, password, ok, err := extractCredentials(r)
+	if err != nil {
+		serveLogin(w, "Invalid form submission.")
 		return
 	}
+	if !ok {
+		serveLogin(w, "Missing credentials.")
+		return
+	}
+
+	user, access, err := ldapAuthenticateAccess(username, password)
+	if err != nil {
+		log.Printf("ldap auth failed for %s: %v", username, err)
+		serveLogin(w, "Invalid credentials.")
+		return
+	}
+
+	token := createSession(user, access)
+	http.SetCookie(w, &http.Cookie{
+		Name:     "cv_session",
+		Value:    token,
+		Path:     "/",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteLaxMode,
+	})
+	http.Redirect(w, r, "/api/dashboard", http.StatusSeeOther)
+}
+
+func handleLoginGet(w http.ResponseWriter, r *http.Request) {
+	serveLogin(w, "")
 }
 
 func serveLogin(w http.ResponseWriter, message string) {

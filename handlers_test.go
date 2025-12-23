@@ -40,7 +40,7 @@ func TestExtractCredentialsForm(t *testing.T) {
 func TestHandleLoginGet(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/login", nil)
-	handleLogin(rec, req)
+	handleLoginGet(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -55,7 +55,7 @@ func TestHandleLoginGet(t *testing.T) {
 func TestHandleLoginMissingCredentials(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/login", nil)
-	handleLogin(rec, req)
+	handleLoginPost(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -68,7 +68,7 @@ func TestHandleLoginInvalidForm(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodPost, "/login", strings.NewReader("%%%"))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	handleLogin(rec, req)
+	handleLoginPost(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}

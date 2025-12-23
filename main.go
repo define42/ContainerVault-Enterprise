@@ -71,7 +71,8 @@ func cvRouter() *mux.Router {
 	router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		http.Redirect(w, r, "/login", http.StatusSeeOther)
 	}).Methods(http.MethodGet)
-	router.HandleFunc("/login", handleLogin)
+	router.HandleFunc("/login", handleLoginPost).Methods(http.MethodPost)
+	router.HandleFunc("/login", handleLoginGet).Methods(http.MethodGet)
 	router.HandleFunc("/logout", handleLogout)
 	api := router.PathPrefix("/api/").Subrouter()
 	api.Use(requireSessionMiddleware(apiUnauthorized))
