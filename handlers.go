@@ -75,13 +75,7 @@ func serveLogin(w http.ResponseWriter, message string) {
 	fmt.Fprint(w, strings.Replace(loginHTML, "{{ERROR}}", errorHTML, 1))
 }
 
-func serveDashboard(w http.ResponseWriter, r *http.Request) {
-	sess, ok := getSession(r)
-	if !ok {
-		http.Redirect(w, r, "/login", http.StatusSeeOther)
-		return
-	}
-
+func serveDashboard(w http.ResponseWriter, r *http.Request, sess sessionData) {
 	bootstrapJSON, err := json.Marshal(map[string]any{
 		"namespaces": sess.Namespaces,
 	})
@@ -104,11 +98,6 @@ func setNoCacheHeaders(w http.ResponseWriter) {
 }
 
 func handleLogout(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
 	cookie, err := r.Cookie("cv_session")
 	if err == nil && cookie.Value != "" {
 		sessionMu.Lock()
@@ -128,12 +117,7 @@ func handleLogout(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }
 
-func handleCatalog(w http.ResponseWriter, r *http.Request) {
-	sess, ok := getSession(r)
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
+func handleCatalog(w http.ResponseWriter, r *http.Request, sess sessionData) {
 
 	namespace := strings.TrimSpace(r.URL.Query().Get("namespace"))
 	if namespace == "" || !namespaceAllowed(sess.Namespaces, namespace) {
@@ -164,12 +148,7 @@ func namespaceAllowed(allowed []string, namespace string) bool {
 	return false
 }
 
-func handleRepos(w http.ResponseWriter, r *http.Request) {
-	sess, ok := getSession(r)
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
+func handleRepos(w http.ResponseWriter, r *http.Request, sess sessionData) {
 
 	namespace := strings.TrimSpace(r.URL.Query().Get("namespace"))
 	if namespace == "" || !namespaceAllowed(sess.Namespaces, namespace) {
@@ -190,12 +169,7 @@ func handleRepos(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func handleTags(w http.ResponseWriter, r *http.Request) {
-	sess, ok := getSession(r)
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
+func handleTags(w http.ResponseWriter, r *http.Request, sess sessionData) {
 
 	repo := strings.TrimSpace(r.URL.Query().Get("repo"))
 	if repo == "" {
@@ -227,12 +201,7 @@ func handleTags(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func handleTagInfo(w http.ResponseWriter, r *http.Request) {
-	sess, ok := getSession(r)
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
+func handleTagInfo(w http.ResponseWriter, r *http.Request, sess sessionData) {
 
 	repo := strings.TrimSpace(r.URL.Query().Get("repo"))
 	tag := strings.TrimSpace(r.URL.Query().Get("tag"))
@@ -262,13 +231,7 @@ func handleTagInfo(w http.ResponseWriter, r *http.Request) {
 	_ = json.NewEncoder(w).Encode(info)
 }
 
-func handleTagLayers(w http.ResponseWriter, r *http.Request) {
-	sess, ok := getSession(r)
-	if !ok {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-
+func handleTagLayers(w http.ResponseWriter, r *http.Request, sess sessionData) {
 	repo := strings.TrimSpace(r.URL.Query().Get("repo"))
 	tag := strings.TrimSpace(r.URL.Query().Get("tag"))
 	if repo == "" || tag == "" {

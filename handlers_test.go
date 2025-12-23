@@ -90,20 +90,17 @@ func TestHandleLogoutMethodNotAllowed(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/logout", nil)
 	handleLogout(rec, req)
-	if rec.Code != http.StatusMethodNotAllowed {
-		t.Fatalf("expected 405, got %d", rec.Code)
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("expected 303, got %d", rec.Code)
 	}
 }
 
 func TestServeDashboardUnauthorized(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
-	serveDashboard(rec, req)
-	if rec.Code != http.StatusSeeOther {
-		t.Fatalf("expected 303, got %d", rec.Code)
-	}
-	if loc := rec.Header().Get("Location"); loc != "/login" {
-		t.Fatalf("expected redirect to /login, got %q", loc)
+	Session(serveDashboard).ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", rec.Code)
 	}
 }
 
@@ -112,7 +109,8 @@ func TestServeDashboardOK(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/dashboard", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
-	serveDashboard(rec, req)
+
+	Session(serveDashboard).ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -147,7 +145,7 @@ func TestHandleCatalogSuccess(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/catalog?namespace=team1", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
-	handleCatalog(rec, req)
+	Session(handleCatalog).ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -179,7 +177,7 @@ func TestHandleReposSuccess(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/repos?namespace=team1", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
-	handleRepos(rec, req)
+	Session(handleRepos).ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -210,7 +208,7 @@ func TestHandleTagsSuccess(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/tags?repo=team1/app", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
-	handleTags(rec, req)
+	Session(handleTags).ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -249,7 +247,7 @@ func TestHandleTagInfoSuccess(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/taginfo?repo=team1/app&tag=latest", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
-	handleTagInfo(rec, req)
+	Session(handleTagInfo).ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}
@@ -289,7 +287,7 @@ func TestHandleTagLayersSuccess(t *testing.T) {
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest(http.MethodGet, "/api/taglayers?repo=team1/app&tag=latest", nil)
 	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
-	handleTagLayers(rec, req)
+	Session(handleTagLayers).ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
 	}

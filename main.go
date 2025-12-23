@@ -16,6 +16,21 @@ import (
 
 var proxyTransport http.RoundTripper = http.DefaultTransport
 
+type SessionHandler func(w http.ResponseWriter, r *http.Request, sess sessionData)
+
+func Session(next SessionHandler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+		sess, ok := getSession(r)
+		if !ok {
+			http.Error(w, "unauthorized", http.StatusUnauthorized)
+			return
+		}
+
+		next(w, r, sess)
+	})
+}
+
 func cvRouter() *mux.Router {
 	_ = mime.AddExtensionType(".js", "application/javascript")
 	staticDir := resolveStaticDir()
@@ -60,12 +75,12 @@ func cvRouter() *mux.Router {
 	router.HandleFunc("/logout", handleLogout)
 	api := router.PathPrefix("/api/").Subrouter()
 	api.Use(requireSessionMiddleware(apiUnauthorized))
-	api.HandleFunc("/dashboard", serveDashboard).Methods(http.MethodGet)
-	api.HandleFunc("/catalog", handleCatalog).Methods(http.MethodGet)
-	api.HandleFunc("/repos", handleRepos).Methods(http.MethodGet)
-	api.HandleFunc("/tags", handleTags).Methods(http.MethodGet)
-	api.HandleFunc("/taginfo", handleTagInfo).Methods(http.MethodGet)
-	api.HandleFunc("/taglayers", handleTagLayers).Methods(http.MethodGet)
+	api.Handle("/dashboard", Session(serveDashboard)).Methods(http.MethodGet)
+	api.Handle("/catalog", Session(handleCatalog)).Methods(http.MethodGet)
+	api.Handle("/repos", Session(handleRepos)).Methods(http.MethodGet)
+	api.Handle("/tags", Session(handleTags)).Methods(http.MethodGet)
+	api.Handle("/taginfo", Session(handleTagInfo)).Methods(http.MethodGet)
+	api.Handle("/taglayers", Session(handleTagLayers)).Methods(http.MethodGet)
 
 	router.NotFoundHandler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		user, ok := authenticate(w, r)
