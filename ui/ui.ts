@@ -81,12 +81,14 @@ type HistoryEntry = {
   const namespaces = Array.isArray(bootstrap.namespaces) ? bootstrap.namespaces : [];
   const permissions = Array.isArray(bootstrap.permissions) ? bootstrap.permissions : [];
   const permissionByNamespace = new Map<string, PermissionKind>();
+  const deleteAllowedByNamespace = new Map<string, boolean>();
   const groupsByNamespace = new Map<string, string[]>();
   permissions.forEach((perm) => {
     if (!perm || typeof perm.namespace !== "string") {
       return;
     }
     permissionByNamespace.set(perm.namespace, permissionKindFromFlags(perm));
+    deleteAllowedByNamespace.set(perm.namespace, Boolean(perm.delete_allowed));
     if (Array.isArray(perm.groups) && perm.groups.length > 0) {
       groupsByNamespace.set(perm.namespace, perm.groups);
     }
@@ -167,6 +169,36 @@ type HistoryEntry = {
       '" aria-label="' +
       escapeHTML(tooltip) +
       '">i</span>'
+    );
+  }
+
+  function namespaceFromRepo(repo: string): string {
+    const idx = repo.indexOf("/");
+    return idx === -1 ? repo : repo.slice(0, idx);
+  }
+
+  function canDeleteRepo(repo: string): boolean {
+    const namespace = namespaceFromRepo(repo);
+    return deleteAllowedByNamespace.get(namespace) === true;
+  }
+
+  function renderTagActions(repo: string, tag: string, expanded: boolean): string {
+    const deleteButton = canDeleteRepo(repo)
+      ? '<button class="tag-delete" type="button" data-repo="' +
+        escapeHTML(repo) +
+        '" data-tag="' +
+        escapeHTML(tag) +
+        '">Delete</button>'
+      : "";
+    return (
+      '<div class="tag-actions">' +
+      deleteButton +
+      '<button class="details-toggle" type="button" aria-expanded="' +
+      (expanded ? "true" : "false") +
+      '">' +
+      (expanded ? "Hide details" : "Details") +
+      "</button>" +
+      "</div>"
     );
   }
 
@@ -378,7 +410,7 @@ type HistoryEntry = {
           '<span class="tagstats">' +
           '<span class="stat">loading...</span>' +
           "</span>" +
-          '<button class="details-toggle" type="button" aria-expanded="false">Details</button>' +
+          renderTagActions(repo, tag, false) +
           "</div>" +
           '<div class="ref">' +
           '<span class="ref-text">' +
@@ -464,11 +496,7 @@ type HistoryEntry = {
       escapeHTML(digest) +
       "</span>" +
       "</span>" +
-      '<button class="details-toggle" type="button" aria-expanded="' +
-      (isVisible ? "true" : "false") +
-      '">' +
-      (isVisible ? "Hide details" : "Details") +
-      "</button>";
+      renderTagActions(repo, tag, isVisible);
   }
 
   function renderLayers(tagKey: string): string {
@@ -810,8 +838,66 @@ type HistoryEntry = {
     document.body.removeChild(input);
   }
 
+  async function deleteTag(repo: string, tag: string, button: HTMLButtonElement): Promise<void> {
+    if (!canDeleteRepo(repo)) {
+      return;
+    }
+    if (!window.confirm("Delete " + repo + ":" + tag + "?")) {
+      return;
+    }
+    const originalLabel = button.textContent || "Delete";
+    button.disabled = true;
+    button.textContent = "Deleting...";
+    try {
+      const res = await fetch(
+        "/api/tag?repo=" + encodeURIComponent(repo) + "&tag=" + encodeURIComponent(tag),
+        { method: "DELETE" },
+      );
+      const text = await res.text();
+      if (!res.ok) {
+        button.textContent = "Failed";
+        window.setTimeout(() => {
+          button.disabled = false;
+          button.textContent = originalLabel;
+        }, 1500);
+        if (text) {
+          console.warn(text);
+        }
+        return;
+      }
+
+      const tags = state.tagsByRepo[repo] || [];
+      state.tagsByRepo[repo] = tags.filter((entry) => entry !== tag);
+      const key = repo + ":" + tag;
+      delete state.tagDetailsByTag[key];
+      delete state.layersVisible[key];
+      delete state.layersLoading[key];
+      renderDetail(repo, state.tagsByRepo[repo]);
+    } catch (err) {
+      button.textContent = "Failed";
+      window.setTimeout(() => {
+        button.disabled = false;
+        button.textContent = originalLabel;
+      }, 1500);
+    }
+  }
+
   detailEl.addEventListener("click", (event) => {
     const target = event.target as HTMLElement | null;
+    const deleteButton = target?.closest(".tag-delete") as HTMLButtonElement | null;
+    if (deleteButton) {
+      const row = deleteButton.closest(".tagrow") as HTMLElement | null;
+      if (!row) {
+        return;
+      }
+      const repo = row.getAttribute("data-repo");
+      const tag = row.getAttribute("data-tag");
+      if (repo && tag) {
+        deleteTag(repo, tag, deleteButton);
+      }
+      event.stopPropagation();
+      return;
+    }
     const copyButton = target?.closest(".copy-ref") as HTMLButtonElement | null;
     if (copyButton) {
       const value = copyButton.getAttribute("data-copy-value") || "";

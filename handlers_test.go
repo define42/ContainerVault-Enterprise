@@ -332,6 +332,58 @@ func TestHandleTagLayersSuccess(t *testing.T) {
 	}
 }
 
+func TestHandleTagDeleteSuccess(t *testing.T) {
+	cleanup := withUpstream(t, func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/v2/team1/app/manifests/v1":
+			if r.Method != http.MethodGet {
+				http.NotFound(w, r)
+				return
+			}
+			w.Header().Set("Content-Type", "application/vnd.docker.distribution.manifest.v2+json")
+			w.Header().Set("Docker-Content-Digest", "sha256:abc")
+			_, _ = w.Write([]byte(`{
+  "schemaVersion": 2,
+  "mediaType": "application/vnd.docker.distribution.manifest.v2+json",
+  "config": { "size": 2, "digest": "sha256:cfg", "mediaType": "application/vnd.docker.container.image.v1+json" },
+  "layers": [
+    { "size": 3, "digest": "sha256:a", "mediaType": "application/vnd.docker.image.rootfs.diff.tar.gzip" }
+  ]
+}`))
+		case "/v2/team1/app/manifests/sha256:abc":
+			if r.Method != http.MethodDelete {
+				http.NotFound(w, r)
+				return
+			}
+			w.WriteHeader(http.StatusAccepted)
+		default:
+			http.NotFound(w, r)
+		}
+	})
+	defer cleanup()
+
+	router := cvRouter()
+	access := []Access{{Namespace: "team1", PullOnly: false, DeleteAllowed: true}}
+	token := seedSessionWithAccess(t, "alice", access)
+	rec := httptest.NewRecorder()
+	req := httptest.NewRequest(http.MethodDelete, "/api/tag?repo=team1/app&tag=v1", nil)
+	req.AddCookie(&http.Cookie{Name: "cv_session", Value: token})
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	var payload struct {
+		Repo string `json:"repo"`
+		Tag  string `json:"tag"`
+	}
+	if err := json.NewDecoder(rec.Body).Decode(&payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Repo != "team1/app" || payload.Tag != "v1" {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+}
+
 func TestBuildNamespacePermissions(t *testing.T) {
 	namespaces := []string{"team1", "team2", "team3", "team4"}
 	access := []Access{
@@ -409,6 +461,16 @@ func TestBuildNamespacePermissions(t *testing.T) {
 
 func seedSession(t *testing.T, userName string, namespaces []string) string {
 	t.Helper()
+	return seedSessionData(t, userName, namespaces, nil)
+}
+
+func seedSessionWithAccess(t *testing.T, userName string, access []Access) string {
+	t.Helper()
+	return seedSessionData(t, userName, namespacesFromAccess(access), access)
+}
+
+func seedSessionData(t *testing.T, userName string, namespaces []string, access []Access) string {
+	t.Helper()
 	sessionMu.Lock()
 	sessions = map[string]sessionData{}
 	sessionMu.Unlock()
@@ -421,6 +483,7 @@ func seedSession(t *testing.T, userName string, namespaces []string) string {
 	sessionMu.Lock()
 	sessions[token] = sessionData{
 		User:       &User{Name: userName},
+		Access:     access,
 		Namespaces: namespaces,
 		CreatedAt:  time.Now(),
 	}

@@ -103,8 +103,12 @@ const dashboardHTML = `<!doctype html>
     .tagname { font-weight:600; color:#e2e8f0; }
     .tagstats { display:flex; gap:12px; flex-wrap:wrap; font-size:12px; color:var(--muted); }
     .stat { padding:4px 8px; border-radius:999px; background:rgba(148,163,184,0.12); }
+    .tag-actions { display:flex; align-items:center; gap:8px; }
     .details-toggle { border:1px solid rgba(56,189,248,0.6); background:rgba(56,189,248,0.18); color:#bae6fd; padding:4px 10px; border-radius:999px; font-size:12px; cursor:pointer; }
     .details-toggle:hover { border-color:rgba(56,189,248,0.9); background:rgba(56,189,248,0.28); color:#e0f2fe; }
+    .tag-delete { border:1px solid rgba(248,113,113,0.6); background:rgba(248,113,113,0.16); color:#fecaca; padding:4px 10px; border-radius:999px; font-size:12px; cursor:pointer; }
+    .tag-delete:hover { border-color:rgba(248,113,113,0.9); background:rgba(248,113,113,0.28); color:#fee2e2; }
+    .tag-delete:disabled { opacity:0.7; cursor:default; }
     .layers { margin-top:10px; border-top:1px dashed rgba(148,163,184,0.25); padding-top:10px; display:grid; gap:8px; }
     .layer { display:grid; grid-template-columns:28px minmax(0,1fr) 90px 160px minmax(0,1.2fr); gap:10px; font-size:12px; color:#cbd5e1; align-items:baseline; }
     .layer-header { color:var(--muted); text-transform:uppercase; font-size:11px; letter-spacing:0.06em; }

@@ -201,6 +201,15 @@ type manifestList struct {
 	} `json:"manifests"`
 }
 
+type registryError struct {
+	Status  int
+	Message string
+}
+
+func (e registryError) Error() string {
+	return e.Message
+}
+
 func manifestCompressedSize(ctx context.Context, client *http.Client, repo string, payload []byte, contentType string) (int64, error) {
 	if strings.Contains(contentType, "manifest.list") || strings.Contains(contentType, "image.index") {
 		var list manifestList
@@ -233,6 +242,33 @@ func manifestCompressedSize(ctx context.Context, client *http.Client, repo strin
 		compressed += layer.Size
 	}
 	return compressed, nil
+}
+
+func deleteManifest(ctx context.Context, repo, digest string) error {
+	client := &http.Client{Timeout: 10 * time.Second}
+	manifestURL := upstream.ResolveReference(&url.URL{Path: "/v2/" + repo + "/manifests/" + digest})
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, manifestURL.String(), nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode == http.StatusAccepted || resp.StatusCode == http.StatusOK {
+		return nil
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	message := strings.TrimSpace(string(body))
+	if message == "" {
+		message = resp.Status
+	}
+	return registryError{Status: resp.StatusCode, Message: message}
 }
 
 func fetchManifestCompressedSizeByDigest(ctx context.Context, client *http.Client, repo, digest string) (int64, error) {

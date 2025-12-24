@@ -87,8 +87,8 @@ func TestCvRouterStaticSetsNoCache(t *testing.T) {
 
 func TestCvRouterProxyForwards(t *testing.T) {
 	originalAuth := ldapAuth
-	ldapAuth = func(username, password string) (*User, error) {
-		return &User{Name: username, Namespace: "team1"}, nil
+	ldapAuth = func(username, password string) (*User, []Access, error) {
+		return &User{Name: username}, []Access{{Namespace: "team1"}}, nil
 	}
 	t.Cleanup(func() {
 		ldapAuth = originalAuth

@@ -21,6 +21,7 @@ func registerAPI(api huma.API) {
 	huma.Get(group, "/tags", handleTags)
 	huma.Get(group, "/taginfo", handleTagInfo)
 	huma.Get(group, "/taglayers", handleTagLayers)
+	huma.Delete(group, "/tag", handleTagDelete)
 }
 
 func sessionMiddleware(api huma.API) func(huma.Context, func(huma.Context)) {
@@ -275,4 +276,70 @@ func handleTagLayers(ctx context.Context, input *tagLayersInput) (*tagLayersOutp
 	}
 
 	return &tagLayersOutput{Body: details}, nil
+}
+
+type tagDeleteInput struct {
+	Repo string `query:"repo"`
+	Tag  string `query:"tag"`
+}
+
+type tagDeletePayload struct {
+	Repo string `json:"repo"`
+	Tag  string `json:"tag"`
+}
+
+type tagDeleteOutput struct {
+	Body tagDeletePayload
+}
+
+func handleTagDelete(ctx context.Context, input *tagDeleteInput) (*tagDeleteOutput, error) {
+	sess, err := requireSession(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	repo := strings.TrimSpace(input.Repo)
+	tag := strings.TrimSpace(input.Tag)
+	if repo == "" || tag == "" {
+		return nil, huma.Error400BadRequest("missing repo or tag")
+	}
+
+	parts := strings.SplitN(repo, "/", 2)
+	if len(parts) < 2 {
+		return nil, huma.Error400BadRequest("invalid repo")
+	}
+	namespace := parts[0]
+	if !namespaceAllowed(sess.Namespaces, namespace) {
+		return nil, huma.Error403Forbidden("namespace not allowed")
+	}
+	if !namespaceDeleteAllowed(sess.Access, namespace) {
+		return nil, huma.Error403Forbidden("delete not allowed")
+	}
+
+	info, err := fetchTagInfo(ctx, repo, tag)
+	if err != nil {
+		return nil, huma.Error502BadGateway("registry unavailable")
+	}
+	if info.Digest == "" {
+		return nil, huma.Error502BadGateway("manifest digest missing")
+	}
+
+	if err := deleteManifest(ctx, repo, info.Digest); err != nil {
+		if regErr, ok := err.(registryError); ok {
+			if regErr.Status == http.StatusNotFound {
+				return nil, huma.Error404NotFound("tag not found")
+			}
+			if regErr.Status == http.StatusMethodNotAllowed {
+				return nil, huma.Error409Conflict("registry delete disabled")
+			}
+		}
+		return nil, huma.Error502BadGateway("registry delete failed")
+	}
+
+	return &tagDeleteOutput{
+		Body: tagDeletePayload{
+			Repo: repo,
+			Tag:  tag,
+		},
+	}, nil
 }

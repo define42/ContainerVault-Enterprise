@@ -67,13 +67,13 @@ func cvRouter() http.Handler {
 	registerAPI(api)
 
 	router.NotFound(func(w http.ResponseWriter, r *http.Request) {
-		user, ok := authenticate(w, r)
+		user, access, ok := authenticate(w, r)
 		if !ok {
 			// http.Error already sent
 			return
 		}
 
-		if !authorize(user, r) {
+		if !authorize(access, r) {
 			fmt.Println("forbidden", user.Name, r.Method, r.URL.Path, user)
 			http.Error(w, "forbidden", http.StatusForbidden)
 			return

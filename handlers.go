@@ -215,3 +215,12 @@ func namespaceAllowed(allowed []string, namespace string) bool {
 	}
 	return false
 }
+
+func namespaceDeleteAllowed(access []Access, namespace string) bool {
+	for _, entry := range access {
+		if entry.Namespace == namespace && entry.DeleteAllowed {
+			return true
+		}
+	}
+	return false
+}
