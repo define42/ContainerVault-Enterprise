@@ -142,13 +142,14 @@ func TestCvRouterProxyWithLDAP(t *testing.T) {
 	client := &http.Client{Timeout: 10 * time.Second}
 	accessCases := []requestCase{
 		{name: "ping", method: http.MethodGet, path: "/v2/", user: "hackers", pass: "dogood", wantStatus: http.StatusOK},
-		{name: "wrong namespace", method: http.MethodGet, path: "/v2/something", user: "hackers", pass: "dogood", wantStatus: http.StatusForbidden},
-		{name: "dashboard without auth", method: http.MethodGet, path: "/dashboard", wantStatus: http.StatusUnauthorized},
-		{name: "bad password", method: http.MethodGet, path: "/v2/", user: "hackers", pass: "wrongpass", wantStatus: http.StatusUnauthorized},
-		{name: "bad user", method: http.MethodGet, path: "/v2/something", user: "wronguser", pass: "dogood", wantStatus: http.StatusUnauthorized},
-		{name: "empty password", method: http.MethodGet, path: "/v2/", user: "hackers", wantStatus: http.StatusUnauthorized},
-		{name: "empty username and password", method: http.MethodGet, path: "/v2/", wantStatus: http.StatusUnauthorized},
-		{name: "empty password with username", method: http.MethodGet, path: "/v2/", user: "", pass: "dogood", wantStatus: http.StatusUnauthorized},
+		{name: "wrong namespace", method: http.MethodGet, path: "/v2/something", user: "hackers", pass: "dogood", wantStatus: http.StatusForbidden, wantBodyContains: []string{`forbidden by user "hackers"`, "repositories:", "team1_rwd"}},
+		{name: "dashboard without auth", method: http.MethodGet, path: "/dashboard", wantStatus: http.StatusUnauthorized, wantBodyContains: []string{"auth required"}},
+		{name: "bad password", method: http.MethodGet, path: "/v2/", user: "hackers", pass: "wrongpass", wantStatus: http.StatusUnauthorized, wantBodyContains: []string{"invalid credentials"}},
+		{name: "bad user", method: http.MethodGet, path: "/v2/something", user: "wronguser", pass: "dogood", wantStatus: http.StatusUnauthorized, wantBodyContains: []string{"invalid credentials"}},
+		{name: "empty password", method: http.MethodGet, path: "/v2/", user: "hackers", wantStatus: http.StatusUnauthorized, wantBodyContains: []string{"auth required"}},
+		{name: "empty username and password", method: http.MethodGet, path: "/v2/", wantStatus: http.StatusUnauthorized, wantBodyContains: []string{"auth required"}},
+		{name: "empty password with username", method: http.MethodGet, path: "/v2/", user: "", pass: "dogood", wantStatus: http.StatusUnauthorized, wantBodyContains: []string{"invalid credentials"}},
+		{name: "user without any permissions", method: http.MethodGet, path: "/v2/team1/repo", user: "serviceuser", pass: "mysecret", wantStatus: http.StatusUnauthorized, wantBodyContains: []string{"invalid credentials"}},
 	}
 	assertRequestCases(t, ctx, baseURL, client, accessCases)
 
@@ -159,17 +160,19 @@ func TestCvRouterProxyWithLDAP(t *testing.T) {
 		},
 	}
 	assertLoginSuccess(t, ctx, baseURL, loginClient, "hackers", "dogood")
+	assertLoginFailure(t, ctx, baseURL, loginClient, "serviceuser", "mysecret", "Invalid credentials.")
 	assertLoginFailure(t, ctx, baseURL, loginClient, "hackers", "wrongpass", "Invalid credentials.")
 	assertLoginFailure(t, ctx, baseURL, loginClient, "hackers", "", "Missing credentials.")
 }
 
 type requestCase struct {
-	name       string
-	method     string
-	path       string
-	user       string
-	pass       string
-	wantStatus int
+	name             string
+	method           string
+	path             string
+	user             string
+	pass             string
+	wantStatus       int
+	wantBodyContains []string
 }
 
 func doRequest(t *testing.T, ctx context.Context, baseURL string, client *http.Client, method, path, user, pass string, body io.Reader, headers map[string]string) (int, string, http.Header) {
@@ -199,6 +202,11 @@ func assertRequestCases(t *testing.T, ctx context.Context, baseURL string, clien
 		status, body, _ := doRequest(t, ctx, baseURL, client, tc.method, tc.path, tc.user, tc.pass, nil, nil)
 		if status != tc.wantStatus {
 			t.Fatalf("expected %d for %s, got %d: %s", tc.wantStatus, tc.name, status, body)
+		}
+		for _, want := range tc.wantBodyContains {
+			if !strings.Contains(body, want) {
+				t.Fatalf("expected body for %s to contain %q, got %q", tc.name, want, body)
+			}
 		}
 	}
 }
